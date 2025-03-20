@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drowsiness Detection System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .video-container {
+            position: relative;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+        }
+        #video_feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .alert-container {
+            margin-top: 20px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .status-active {
+            background-color: green;
+        }
+        .status-inactive {
+            background-color: gray;
+        }
+        .status-alert {
+            background-color: red;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .card {
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Drowsiness Detection System</h1>
+        
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Live Camera Feed</h5>
+                    <div>
+                        Status: 
+                        <span id="status-text">Not Running</span>
+                        <span id="status-indicator" class="status-indicator status-inactive"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="controls">
+                    <button id="btn-start" class="btn btn-success">Start Detection</button>
+                    <button id="btn-stop" class="btn btn-danger" disabled>Stop Detection</button>
+                </div>
+                <div class="video-container">
+                    <img id="video_feed" src="{{ url_for('video_feed') }}" alt="Video Feed">
+                </div>
+            </div>
+        </div>
+        
+        <div class="alert-container">
+            <div id="alert-message" class="alert alert-secondary" role="alert">
+                System is not running. Click "Start Detection" to begin monitoring.
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5>About This System</h5>
+            </div>
+            <div class="card-body">
+                <p>This drowsiness detection system uses computer vision and machine learning to detect if a driver is becoming drowsy by monitoring their eye state.</p>
+                <ul>
+                    <li>The system detects your face and eyes in real-time</li>
+                    <li>It analyzes whether your eyes are open or closed</li>
+                    <li>If your eyes remain closed for several consecutive frames, an alert is triggered</li>
+                    <li>Use this as a safety tool for long drives or monotonous tasks</li>
+                </ul>
+                <p><strong>Instructions:</strong></p>
+                <ol>
+                    <li>Click "Start Detection" to begin monitoring</li>
+                    <li>Make sure your face is clearly visible to the camera</li>
+                    <li>An audible alarm will sound if drowsiness is detected</li>
+                    <li>Click "Stop Detection" when you're done</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script>
+        $(document).ready(function() {
+    // Start detection button
+        $('#btn-start').click(function() {
+            $('#btn-start').prop('disabled', true);
+            $('#status-text').text('Starting...');
+            $('#alert-message').removeClass('alert-secondary alert-danger').addClass('alert-info');
+            $('#alert-message').html('Starting camera, please wait...');
+        
+            $.post('/start', function(data) {
+                if (data.success) {
+                    $('#btn-stop').prop('disabled', false);
+                    $('#alert-message').html('System is monitoring for drowsiness. Keep the webcam pointed at your face.');
+                    $('#status-indicator').removeClass('status-inactive status-alert').addClass('status-active');
+                    $('#status-text').text('Running');
+                } else {
+                    $('#btn-start').prop('disabled', false);
+                    $('#alert-message').removeClass('alert-secondary alert-info').addClass('alert-danger');
+                    $('#alert-message').html('Error starting detection: ' + data.message);
+                    $('#status-text').text('Error');
+                }
+            }).fail(function() {
+                $('#btn-start').prop('disabled', false);
+                $('#alert-message').removeClass('alert-secondary alert-info').addClass('alert-danger');
+                $('#alert-message').html('Server error. Could not start detection.');
+                $('#status-text').text('Error');
+            });
+        });
+    
+    // Stop detection button
+        $('#btn-stop').click(function() {
+            $('#btn-stop').prop('disabled', true);
+            $('#status-text').text('Stopping...');
+        
+            $.post('/stop', function(data) {
+                if (data.success) {
+                    $('#btn-start').prop('disabled', false);
+                    $('#alert-message').removeClass('alert-info alert-danger').addClass('alert-secondary');
+                    $('#alert-message').html('System is not running. Click "Start Detection" to begin monitoring.');
+                    $('#status-indicator').removeClass('status-active status-alert').addClass('status-inactive');
+                    $('#status-text').text('Not Running');
+                } else {
+                    $('#btn-stop').prop('disabled', false);
+                    $('#alert-message').addClass('alert-danger');
+                    $('#alert-message').html('Error stopping detection: ' + data.message);
+                }
+            }).fail(function() {
+                $('#btn-stop').prop('disabled', false);
+                $('#alert-message').addClass('alert-danger');
+                $('#alert-message').html('Server error. Could not stop detection.');
+            });
+        });
+    
+    // Check status every second
+        setInterval(function() {
+            $.getJSON('/status', function(data) {
+                if (!data.detection_running) {
+                    return;
+                }
+            
+                if(data.alarm_status) {
+                    $('#alert-message').removeClass('alert-info alert-secondary').addClass('alert-danger');
+                    $('#alert-message').html('<strong>ALERT!</strong> Drowsiness detected! Please take a break or rest.');
+                    $('#status-indicator').removeClass('status-active status-inactive').addClass('status-alert');
+                    $('#status-text').text('DROWSINESS DETECTED');
+                } else {
+                    $('#alert-message').removeClass('alert-danger alert-secondary').addClass('alert-info');
+                    $('#alert-message').html('System is monitoring for drowsiness. Keep the webcam pointed at your face.');
+                    $('#status-indicator').removeClass('status-alert status-inactive').addClass('status-active');
+                    $('#status-text').text('Running');
+                }
+            });
+        }, 1000);
+    });
+    </script>
+</body>
+</html>
